@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Local-only development and assessment material
+/AGENTS.md
+/TASKS.md
+/local-only/

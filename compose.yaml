@@ -1,0 +1,42 @@
+services:
+  camera-stream:
+    image: bluenviron/mediamtx:1.21.4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8555:8554"
+
+  lower-sim:
+    build:
+      context: .
+      dockerfile: Dockerfile.sim
+    command: ["python3", "-m", "simulator.lower_simulator", "--host", "0.0.0.0", "--port", "9000"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('127.0.0.1',9000),1); s.close()"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SIM_HOST: lower-sim
+      SIM_PORT: "9000"
+      DISPLAY: ":99"
+      SOURCE: video
+      SOURCE_VALUE: assets/assessment_demo.mp4
+      CAMERA_SOURCE_VALUE: rtsp://camera-stream:8554/camera
+      YOLO_WEIGHTS: Predict/best.pt
+      YOLO_CONFIDENCE: "0.65"
+    depends_on:
+      camera-stream:
+        condition: service_started
+      lower-sim:
+        condition: service_healthy
+    ports:
+      - "6080:6080"
+      - "5900:5900"
+    command: ["/workspace/docker/start-ui.sh"]
+    restart: unless-stopped
