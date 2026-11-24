@@ -1,9 +1,11 @@
 # Smart Waste Quick Start Memo
 
-修改代码后，按顺序在 PowerShell 中运行以下三行命令。第二条会重新构建镜像并启动全部容器。
+首次从 GitHub 复现时，按顺序在 PowerShell 中运行以下命令。`docker compose up`
+会重新构建镜像并启动全部容器。
 
 ```powershell
-cd smart-waste-sorting-assessment-main
+git clone https://github.com/tung-sahura/smart-waste-softing.git
+cd smart-waste-softing
 docker compose up --build -d
 docker compose exec app python3 -m unittest discover -s tests -v
 ```
@@ -27,7 +29,7 @@ git config --global user.email "你的GitHub邮箱"
 进入项目目录后，把公开文件加入本地 Git 仓库：
 
 ```powershell
-cd smart-waste-sorting-assessment-main
+cd smart-waste-softing
 git init -b main
 git add .
 git status --short

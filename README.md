@@ -48,15 +48,16 @@ MediaMTX ─────────────┐
 
 ## 快速启动
 
-推荐使用 Docker Desktop，避免 Windows 本机 Python、OpenCV 和 PyQt 环境差异。修改代码后按以下顺序执行：
+推荐使用 Docker Desktop，避免 Windows 本机 Python、OpenCV 和 PyQt 环境差异。首次从 GitHub 复现时按以下顺序执行：
 
 ```powershell
-cd smart-waste-sorting-assessment-main
+git clone https://github.com/tung-sahura/smart-waste-softing.git
+cd smart-waste-softing
 docker compose up --build -d
 docker compose exec app python3 -m unittest discover -s tests -v
 ```
 
-这三条命令也记录在 [MEMO.md](MEMO.md) 中。
+这些命令也记录在 [MEMO.md](MEMO.md) 中。如果本机已经有项目，进入项目根目录后只需执行后两条 Docker 命令。
 
 `--build` 会重新构建 `app` 镜像，确保容器使用当前源代码。启动过程可能需要等待 YOLO 权重和界面完成加载。检查容器状态：
 
