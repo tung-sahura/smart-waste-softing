@@ -25,7 +25,7 @@ services:
       SIM_HOST: lower-sim
       SIM_PORT: "9000"
       DISPLAY: ":99"
-      SOURCE: video
+      SOURCE: none
       SOURCE_VALUE: assets/assessment_demo.mp4
       CAMERA_SOURCE_VALUE: rtsp://camera-stream:8554/camera
       YOLO_WEIGHTS: Predict/best.pt

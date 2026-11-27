@@ -7,18 +7,29 @@ import threading
 import time
 from typing import Tuple
 
-from .protocol_reference import Command, Packet, read_packet
+from .protocol_reference import Command, Packet, WasteType, read_packet
 
 
 LOG = logging.getLogger("lower-simulator")
 
 
 class LowerComputerSimulator:
-    def __init__(self, host: str = "0.0.0.0", port: int = 9000, action_delay: float = 0.45) -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 9000,
+        action_delay: float = 0.45,
+        full_after: int = 3,
+    ) -> None:
+        if full_after < 1:
+            raise ValueError("full_after 必须至少为 1")
         self.host = host
         self.port = port
         self.action_delay = action_delay
+        self.full_after = full_after
         self.sort_count = 0
+        self.sort_counts = {item: 0 for item in WasteType}
+        self.full_bins = set()
         self._send_lock = threading.Lock()
 
     def serve_forever(self) -> None:
@@ -78,10 +89,26 @@ class LowerComputerSimulator:
         self._send_fragmented(client, Packet(Command.ACTION_DONE, bytes((sequence,))))
 
         if packet.command == Command.WASTE_RESULT:
+            if len(packet.payload) < 2:
+                self._send_fragmented(client, Packet(Command.ERROR, b"missing-waste-type"))
+                return
+            try:
+                waste_type = WasteType(packet.payload[1])
+            except ValueError:
+                self._send_fragmented(client, Packet(Command.ERROR, b"bad-waste-type"))
+                return
+
             self.sort_count += 1
-            # A repeatable full-bin event makes the UI state observable.
-            if self.sort_count % 6 == 0 and len(packet.payload) >= 2:
-                self._send_fragmented(client, Packet(Command.BIN_FULL, packet.payload[1:2]))
+            self.sort_counts[waste_type] += 1
+            if (
+                self.sort_counts[waste_type] >= self.full_after
+                and waste_type not in self.full_bins
+            ):
+                self.full_bins.add(waste_type)
+                self._send_fragmented(
+                    client,
+                    Packet(Command.BIN_FULL, bytes((int(waste_type),))),
+                )
 
 
 def main() -> None:

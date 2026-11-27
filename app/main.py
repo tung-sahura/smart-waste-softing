@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument("--baudrate", default=int(os.environ.get("BAUDRATE", "9600")), type=int)
     parser.add_argument(
         "--source",
-        choices=("video", "camera"),
+        choices=("idle", "none", "video", "camera"),
         default=os.environ.get("SOURCE", "video"),
     )
     parser.add_argument(

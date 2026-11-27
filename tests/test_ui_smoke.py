@@ -13,6 +13,10 @@ from app.ui import MainWindow
 
 
 class SmokeWorker(QtCore.QObject):
+    def __init__(self):
+        super().__init__()
+        self.source_requests = []
+
     frame_ready = QtCore.pyqtSignal(QtGui.QImage)
     state_changed = QtCore.pyqtSignal(str)
     counts_changed = QtCore.pyqtSignal(object)
@@ -43,8 +47,8 @@ class SmokeWorker(QtCore.QObject):
     def request_reset(self):
         return None
 
-    def request_source(self, _kind, _value):
-        return None
+    def request_source(self, kind, value):
+        self.source_requests.append((kind, value))
 
     def request_seek(self, _frame_index):
         return None
@@ -79,6 +83,35 @@ class MainWindowSmokeTest(unittest.TestCase):
         self.assertEqual(self.window.promo_button.text(), "宣传视频")
         self.assertEqual(self.window.camera_label.minimumWidth(), 420)
         self.assertEqual(self.window.camera_label.minimumHeight(), 280)
+
+    def test_camera_button_toggles_open_and_close(self):
+        self.assertEqual(self.window.camera_button.text(), "打开摄像头")
+
+        self.window.toggle_camera()
+        self.assertEqual(self.window.worker.source_requests[-1][0], "camera")
+
+        self.window.on_source_changed("摄像头流 rtsp://camera-stream:8554/camera")
+        self.assertEqual(self.window.camera_button.text(), "关闭摄像头")
+        self.assertTrue(self.window._camera_active)
+
+        self.window.toggle_camera()
+        self.assertEqual(self.window.worker.source_requests[-1], (
+            "video",
+            "assets/assessment_demo.mp4",
+        ))
+        self.assertFalse(self.window._processing)
+
+        self.window.on_source_changed("assets/assessment_demo.mp4")
+        self.assertEqual(self.window.camera_button.text(), "打开摄像头")
+        self.assertFalse(self.window._camera_active)
+
+    def test_idle_source_prompts_for_manual_input(self):
+        self.window.on_source_changed("未选择输入源")
+
+        self.assertEqual(self.window.source_mode_label.text(), "等待输入")
+        self.assertIn("导入视频", self.window.camera_label.text())
+        self.assertEqual(self.window.camera_button.text(), "打开摄像头")
+        self.assertIn("等待输入源", self.window.state_label.text())
 
     def test_detection_and_bin_state_update_visual_properties(self):
         detection = Detection(

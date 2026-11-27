@@ -383,6 +383,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self._slider_dragging = False
         self._log_line_count = 0
         self.promotional_dialog = None
+        self._camera_active = False
+        initial_source_kind = getattr(
+            worker, "source_kind", os.environ.get("SOURCE", "video")
+        )
+        initial_source_value = getattr(
+            worker,
+            "source_value",
+            os.environ.get("SOURCE_VALUE", "assets/assessment_demo.mp4"),
+        )
+        self._last_video_source = (
+            initial_source_value
+            if initial_source_kind == "video"
+            else os.environ.get("SOURCE_VALUE", "assets/assessment_demo.mp4")
+        )
         self.count_labels = {}  # type: Dict[str, QtWidgets.QLabel]
         self.bin_labels = {}  # type: Dict[str, QtWidgets.QLabel]
         self._build_ui()
@@ -1133,7 +1147,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _connect_signals(self) -> None:
         self.video_button.clicked.connect(self.import_video)
-        self.camera_button.clicked.connect(self.open_camera)
+        self.camera_button.clicked.connect(self.toggle_camera)
         self.promo_button.clicked.connect(self.open_promotional_video)
         self.start_button.clicked.connect(self.toggle_processing)
         self.reset_button.clicked.connect(self.reset_statistics)
@@ -1226,8 +1240,16 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return
 
+        self._last_video_source = str(video_path)
         self.append_log("正在导入视频：{}".format(video_path))
         self.worker.request_source("video", str(video_path))
+
+    @QtCore.pyqtSlot()
+    def toggle_camera(self) -> None:
+        if self._camera_active:
+            self.close_camera()
+        else:
+            self.open_camera()
 
     @QtCore.pyqtSlot()
     def open_camera(self) -> None:
@@ -1235,6 +1257,25 @@ class MainWindow(QtWidgets.QMainWindow):
         camera_source = os.environ.get("CAMERA_SOURCE_VALUE", "0")
         self.append_log("正在打开摄像头：{}".format(camera_source))
         self.worker.request_source("camera", camera_source)
+
+    @QtCore.pyqtSlot()
+    def close_camera(self) -> None:
+        """释放摄像头输入并返回最近使用的视频文件。"""
+        if self._processing:
+            self._set_processing(False)
+        self.append_log(
+            "正在关闭摄像头并返回视频：{}".format(self._last_video_source)
+        )
+        self.worker.request_source("video", self._last_video_source)
+
+    def _set_camera_active(self, active: bool) -> None:
+        self._camera_active = active
+        self.camera_button.setText("关闭摄像头" if active else "打开摄像头")
+        self.camera_button.setToolTip(
+            "关闭摄像头并返回最近使用的视频"
+            if active
+            else "打开当前配置的摄像头或网络视频流"
+        )
 
     @QtCore.pyqtSlot()
     def open_promotional_video(self) -> None:
@@ -1269,8 +1310,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if enabled:
             self.worker.start_processing()
             self.start_button.setText("暂停识别")
-            if self.source_label.text().startswith("摄像头"):
+            source_text = self.source_label.text()
+            if source_text.startswith("摄像头"):
                 self.update_system_state("摄像头识别中")
+            elif source_text == "未选择输入源":
+                self.update_system_state("等待导入视频")
             else:
                 self.update_system_state("视频识别中")
         else:
@@ -1290,17 +1334,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_fps(0)
         self.camera_label.clear()
         self.update_detection(None)
-        if display_name.startswith("摄像头"):
+        if display_name == "未选择输入源":
+            self._set_camera_active(False)
+            self.source_mode_label.setText("等待输入")
+            self.camera_label.setText("尚未选择输入源\n点击“导入视频”或“打开摄像头”")
+            self.update_system_state("等待输入源")
+            self.start_button.setText("开始识别")
+        elif display_name.startswith("摄像头"):
+            self._set_camera_active(True)
             self.source_mode_label.setText("摄像头模式")
             self.camera_label.setText("摄像头已连接，正在等待画面…")
             self.update_system_state("摄像头识别中")
             if not self._processing:
                 self._set_processing(True)
         else:
+            self._set_camera_active(False)
             self.source_mode_label.setText("视频文件")
             self.camera_label.setText("视频已就绪，正在等待首帧…")
-            self.update_system_state("视频已就绪")
-            if not self._processing:
+            if self._processing:
+                self.update_system_state("视频识别中")
+            else:
+                self.update_system_state("视频已就绪")
                 self.start_button.setText("开始识别")
 
     @QtCore.pyqtSlot()

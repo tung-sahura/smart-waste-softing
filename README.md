@@ -2,11 +2,14 @@
 
 基于 PyQt5、Ultralytics YOLO 和二进制串口/TCP 协议实现的智能垃圾分拣上位机。系统可读取视频或摄像头画面，在后台线程中执行真实 YOLO 推理，通过分拣状态机与模拟下位机或实际下位机通信，并在界面中展示检测结果、分类统计、输入源状态和原始 TX/RX 数据帧。
 
-截至 **2026-11-24**：
+截至 **2026-11-27**：
 
-- 30 个公开测试全部通过；
+- 35 个公开测试全部通过；
 - `assets/assessment_demo.mp4` 干净闭环验收通过；
 - 四类垃圾均有完整 `WASTE_RESULT → ACK → ACTION_DONE` 记录；
+- 短暂丢失检测框不会导致同一物体重复发送分拣动作；
+- 摄像头按钮支持一键打开和关闭，关闭后返回最近使用的视频；
+- 启动时保持“未选择输入源”，导入视频或打开摄像头后才开始处理；
 - Windows 摄像头切换、断流重连和最小窗口缩放已完成实际验证。
 
 ## 功能概览
@@ -17,6 +20,7 @@
 - **后台处理**：视频读取和模型推理在独立 Qt 工作线程中执行，不阻塞界面主线程。
 - **通信协议**：支持半包、粘包、噪声、错误校验和重新同步。
 - **分拣状态机**：连续 3 帧稳定后发送动作，处理 ACK、超时重发、满载、压缩和错误状态。
+- **满载模拟**：模拟下位机按四类分别累计，每类第 3 次成功分拣后发送对应的 `BIN_FULL`。
 - **可靠计数**：仅在收到对应 `ACTION_DONE` 后更新分类数量。
 - **通信日志**：界面直接显示命令名称、序号和原始十六进制报文。
 - **响应式界面**：窗口缩放后主要操作仍可使用，右侧信息区支持滚动。
@@ -79,7 +83,7 @@ docker compose ps
 http://localhost:6080/vnc.html?autoconnect=1&resize=scale
 ```
 
-程序默认自动加载并处理 `assets/assessment_demo.mp4`。界面底部可以导入视频、打开摄像头、播放宣传视频、暂停/继续识别、重置统计和退出程序。
+程序启动后显示“未选择输入源”，不会自动播放视频。点击“导入视频”或“打开摄像头”后才开始处理。界面底部还可以播放宣传视频、暂停/继续识别、重置统计和退出程序。打开摄像头后，按钮会变为“关闭摄像头”；关闭时释放摄像头并返回最近使用的视频。
 
 停止容器：
 
@@ -98,18 +102,19 @@ docker compose exec app python3 -m unittest discover -s tests -v
 全部通过时终端末尾显示：
 
 ```text
-Ran 30 tests in ...
+Ran 35 tests in ...
 OK
 ```
 
 | 测试文件 | 数量 | 覆盖内容 |
 |---|---:|---|
 | `test_protocol.py` | 9 | 编码、长度、校验和、半包、粘包、噪声和重新同步 |
-| `test_controller.py` | 7 | 稳定识别、ACK/重发、冷却期、满载、错误回复和压缩 |
+| `test_controller.py` | 8 | 稳定识别、抗短暂丢框、ACK/重发、冷却期、满载、错误回复和压缩 |
 | `test_cv_detector.py` | 5 | 视频读取/跳转/重播、YOLO 接口和未知类别 |
 | `test_yolo_adapter.py` | 3 | 多目标转换与排序、空结果和批量数组格式 |
-| `test_frame_sources.py` | 1 | 网络摄像头断流重连 |
-| `test_ui_smoke.py` | 4 | 主界面控件、状态反馈和 TX/RX 日志 |
+| `test_frame_sources.py` | 2 | 空输入源等待用户选择、网络摄像头断流重连 |
+| `test_lower_simulator.py` | 1 | 四类垃圾桶各自满 3 次后发送满载消息 |
+| `test_ui_smoke.py` | 6 | 主界面控件、空输入提示、摄像头开关、状态反馈和 TX/RX 日志 |
 | `test_promo_player.py` | 1 | 宣传视频后台解码 |
 
 测试详情见 [tests/README.md](tests/README.md)。公开测试是基础逻辑验证，不能完全替代摄像头、完整 Docker 闭环和 Nano 硬件验收；现场还可能有未公开边界测试。
@@ -168,7 +173,7 @@ winget install -e --id Gyan.FFmpeg
 ```
 
 也可以双击 `scripts\start-camera-stream.cmd`。看到 `Publish URL` 和
-`Waiting for the Docker app` 后，在 Docker 网页中点击“打开摄像头”。程序会自动开始识别，并保持推流窗口运行。
+`Waiting for the Docker app` 后，在 Docker 网页中点击“打开摄像头”。程序会自动开始识别，按钮变为“关闭摄像头”；点击关闭后会释放摄像头并返回最近使用的视频。推流窗口可继续保持或停止。
 
 脚本默认设备为 `HP True Vision FHD Camera`，以 1280×720、30fps 采集，以 15fps 通过 RTSP 推送。端口只绑定在 `127.0.0.1:8555`，不需要向校园网开放。
 
@@ -218,7 +223,7 @@ vedio/
   video_module.py      原项目视频读取、跳转和重播
 simulator/
   lower_simulator.py   TCP 下位机模拟器
-tests/                 30 个公开测试
+tests/                 35 个公开测试
 assets/                考核演示视频
 Predict/best.pt        比赛 YOLO 权重
 docker/start-ui.sh     Xvfb、VNC 和程序启动脚本

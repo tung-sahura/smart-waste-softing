@@ -13,8 +13,16 @@ docker compose exec app python3 -m unittest discover -s tests -v
 测试全部通过时应看到：
 
 ```text
-Ran 30 tests in ...
+Ran 35 tests in ...
 OK
+```
+
+修改代码后，先重新构建镜像，再运行测试：
+
+```powershell
+cd smart-waste-softing
+docker compose up --build -d
+docker compose exec app python3 -m unittest discover -s tests -v
 ```
 
 ## Git Local Commit

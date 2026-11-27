@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from app.frame_sources import NetworkCameraSource
+from app.frame_sources import NetworkCameraSource, create_frame_source
 
 
 class _FakeCapture:
@@ -44,6 +44,17 @@ class NetworkCameraSourceTests(unittest.TestCase):
         self.assertIs(frame, recovered_frame)
         self.assertTrue(failed_capture.released)
         self.assertEqual(capture_factory.call_count, 2)
+
+
+class IdleFrameSourceTests(unittest.TestCase):
+    def test_idle_source_waits_for_user_selection(self):
+        source = create_frame_source("none")
+        try:
+            self.assertEqual(source.kind, "idle")
+            self.assertEqual(source.display_name, "未选择输入源")
+            self.assertEqual(source.read(), (False, None))
+        finally:
+            source.release()
 
 
 if __name__ == "__main__":

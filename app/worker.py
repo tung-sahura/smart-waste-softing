@@ -274,6 +274,10 @@ class SortingWorker(QtCore.QThread):
                     self.msleep(40)
                     continue
 
+                if self._source is not None and self._source.kind == "idle":
+                    self.msleep(40)
+                    continue
+
                 ok, frame = self._source.read() if self._source is not None else (False, None)
                 if not ok or frame is None:
                     if self._source is not None and self._source.kind == "video":

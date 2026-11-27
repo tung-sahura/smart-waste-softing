@@ -106,8 +106,32 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(len(self.transport.sent), 1)
         self.assertEqual(self.controller.state, SystemState.COOLDOWN)
 
+        for _ in range(self.controller.release_frames - 1):
+            self.controller.process_detection(None)
+            self.assertEqual(self.controller.state, SystemState.COOLDOWN)
+
         self.controller.process_detection(None)
         self.assertEqual(self.controller.state, SystemState.IDLE)
+
+    def test_brief_detection_gap_does_not_retrigger_same_object(self):
+        for _ in range(3):
+            self.controller.process_detection(self.detection)
+        sequence = self.transport.sent[0].payload[0]
+        self.transport.feed(Packet(Command.ACK, bytes((Command.WASTE_RESULT, sequence))))
+        self.controller.poll()
+        self.transport.feed(Packet(Command.ACTION_DONE, bytes((sequence,))))
+        self.controller.poll()
+
+        # Simulate the last object's box flickering before it stabilizes again.
+        for missing_frames in (1, 5, 3):
+            for _ in range(missing_frames):
+                self.controller.process_detection(None)
+            for _ in range(3):
+                self.controller.process_detection(self.detection)
+
+        self.assertEqual(self.transport.sent[0].payload[0], sequence)
+        self.assertEqual(len(self.transport.sent), 1)
+        self.assertEqual(self.controller.state, SystemState.COOLDOWN)
 
     def test_mismatched_replies_do_not_change_count_or_sequence(self):
         for _ in range(3):
@@ -140,7 +164,8 @@ class ControllerTests(unittest.TestCase):
 
         for _ in range(2):
             if controller.state is SystemState.COOLDOWN:
-                controller.process_detection(None)
+                for _ in range(controller.release_frames):
+                    controller.process_detection(None)
             for _ in range(3):
                 controller.process_detection(self.detection)
 

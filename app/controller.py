@@ -32,7 +32,10 @@ class SortingController:
         max_retries: int = 2,
         compress_after: int = 20,
         clock: Callable[[], float] = time.monotonic,
+        release_frames: int = 8,
     ) -> None:
+        if release_frames < 1:
+            raise ValueError("release_frames 必须至少为 1")
         self.transport = transport
         self.event_callback = event_callback or (lambda _name, _data: None)
         self.stable_frames = stable_frames
@@ -40,6 +43,7 @@ class SortingController:
         self.max_retries = max_retries
         self.compress_after = compress_after
         self.clock = clock
+        self.release_frames = release_frames
         self.counts = {item: 0 for item in WasteType}
         self.bin_full = {item: False for item in WasteType}
         self.state = SystemState.IDLE
@@ -91,7 +95,12 @@ class SortingController:
                 self._candidate = None
                 self._stable_count = 0
                 self._missing_frames += 1
-                self._set_state(SystemState.IDLE)
+                # YOLO can briefly lose a box while the object is still in
+                # view. Require a sustained absence before accepting the same
+                # object as a new target.
+                if self._missing_frames >= self.release_frames:
+                    self._missing_frames = 0
+                    self._set_state(SystemState.IDLE)
             else:
                 self._missing_frames = 0
             return
@@ -119,6 +128,7 @@ class SortingController:
         if self.bin_full[waste_type]:
             self._candidate = None
             self._stable_count = 0
+            self._missing_frames = 0
             self._set_state(SystemState.COOLDOWN)
             self._emit(
                 "log",
@@ -136,6 +146,7 @@ class SortingController:
         self._active_sequence = None
         self._deadline = 0.0
         self._retry_count = 0
+        self._missing_frames = 0
         self._set_state(SystemState.ERROR)
         self._emit("log", message=message)
 
@@ -173,6 +184,7 @@ class SortingController:
     def _send_classification(self, waste_type: WasteType) -> bool:
         """发送分类请求；超时重试时复用当前序号和原 Packet。"""
         if self.bin_full[waste_type]:
+            self._missing_frames = 0
             self._set_state(SystemState.COOLDOWN)
             return False
 
@@ -315,6 +327,7 @@ class SortingController:
         self._retry_count = 0
         self._candidate = None
         self._stable_count = 0
+        self._missing_frames = 0
         self._set_state(SystemState.COOLDOWN)
 
         if command == Command.WASTE_RESULT:

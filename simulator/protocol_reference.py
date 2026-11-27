@@ -22,6 +22,13 @@ class Command(IntEnum):
     ERROR = 0x7F
 
 
+class WasteType(IntEnum):
+    HAZARDOUS = 0x01
+    OTHER = 0x02
+    RECYCLABLE = 0x03
+    KITCHEN = 0x04
+
+
 @dataclass(frozen=True)
 class Packet:
     command: Command

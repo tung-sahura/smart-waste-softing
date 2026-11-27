@@ -30,6 +30,24 @@ class FrameSource(ABC):
         raise NotImplementedError
 
 
+class IdleFrameSource(FrameSource):
+    kind = "idle"
+    display_name = "未选择输入源"
+
+    def __init__(self) -> None:
+        self.frame_count = 0
+        self.source_fps = 0.0
+
+    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
+        return False, None
+
+    def restart(self) -> bool:
+        return False
+
+    def release(self) -> None:
+        return None
+
+
 class CameraFrameSource(FrameSource):
     kind = "camera"
 
@@ -119,6 +137,8 @@ class NetworkCameraSource(FrameSource):
 
 
 def create_frame_source(kind: str, value: str = "") -> FrameSource:
+    if kind in ("idle", "none"):
+        return IdleFrameSource()
     if kind == "video":
         return VideoFileSource(value or DEFAULT_VIDEO)
     if kind == "camera":
@@ -129,4 +149,4 @@ def create_frame_source(kind: str, value: str = "") -> FrameSource:
         except ValueError as exc:
             raise ValueError("摄像头编号必须是整数") from exc
         return CameraFrameSource(camera_index)
-    raise ValueError("未知图像源：{}；只允许 video 或 camera".format(kind))
+    raise ValueError("未知图像源：{}；只允许 idle、video 或 camera".format(kind))
